@@ -19,6 +19,12 @@ Pin13 (amber led) is used as an output
 
 
 
+// ------------------ External RTC DS1307N ---------------
+#include <Wire.h>
+#include "RTClib.h"
+RTC_DS1307 RTC;
+
+// ------------------ External RGPS Shield ---------------
 #include <TinyGPS++.h> // Include the TinyGPS++ library
 TinyGPSPlus tinyGPS; // Create a TinyGPSPlus object
 
@@ -30,102 +36,186 @@ TinyGPSPlus tinyGPS; // Create a TinyGPSPlus object
 SoftwareSerial ssGPS(ARDUINO_GPS_TX, ARDUINO_GPS_RX); // Create a SoftwareSerial
 #define gpsPort ssGPS  // Alternatively, use Serial1 on the Leonardo
 
-int dayCounter = 0;
-int startDateDay = 0;
+// ------------------ Internal Timekeeping/Handling ---------------
+#include <TimeLib.h>
+#include <TimeAlarms.h>
 
-// temporary varible for calcultion
-int tempHours = 0;
-int tempMinutes = 0;
-int tempSeconds = 0;
+AlarmId id;
 
-// Time array being defined
-// 2 times a day - 7 days
-// HHMMSS format
+int ledPin = 12; 
 
-  int timeStartArray[2][7] = {{71455,71455,71455,71455,71455,71455,71455} ,   /*  initializers for row indexed by 0 -> time1Start */
-                              {81455,81455,81455,81455,81455,81455,81455}};    /*  initializers for row indexed by 1 -> time2Start */  
+// ------------------ Timetables ---------------
 
-int timeStopArray[2][7] = {{71555,71555,71555,71555,71555, 71555, 71555} ,   /*  initializers for row indexed by 0 -> time1End */
+long int timeStartArray[2][7] = {{71455,71455,234900,234300,71455,71455,71455} ,   /*  initializers for row indexed by 0 -> time1Start */
+                              {81455,81455,81455,234330,81455,81455,81455}};    /*  initializers for row indexed by 1 -> time2Start */  
+
+long int timeStopArray[2][7] = {{71555,71555,234830,71555,71555, 71555, 71555} ,   /*  initializers for row indexed by 0 -> time1End */
                             {81555,81555,81555,81555,81555, 81555, 81555}};    /*  initializers for row indexed by 1 -> time2End */
  
 
+
+
+// ------------------ Set Up ---------------
+void setup() {
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);   // turn the LED on (LOW is the voltage level)
+  Serial.begin(230400);
+  while (!Serial) ; // wait for Arduino Serial Monitor
+
+// Create 4 alarms per day begining by  
+
+  //setTime(8,29,57,1,1,11); // set time to Saturday 8:29:00am Jan 1 2011    Wire.begin();
+  //synch only at start with RTC
+  Wire.begin();
+  RTC.begin();
+  DateTime now = RTC.now(); 
+  setTime(now.hour(),now.minute(),now.second(),now.day(),now.month(),now.year()-2000); // set time to Saturday 8:29:00am Jan 1 2011
+
+  // create the alarms, to trigger at specific times :sizeof
+
+//    timeDayOfWeek_t eachDayVector[8];
+
+ //   for(int i = dowInvalid; i!= dowSaturday;i++){
+//        eachDayVector[i] = static_cast<timeDayOfWeek_t>(i);
+//    }
   
+  // Days order: Sun, Mon, Tues, Wed, Thurs, Fri, Sat
+//  for(int numberOfDays = 1; numberOfDays < 8-1; numberOfDays++) // -> max of 256 alarms = 64 days max
+ // {
+      Alarm.alarmRepeat(dowSunday, getHours(timeStartArray  [0][0]),  getMinutes(timeStartArray [0][0]),  getSeconds(timeStartArray [0][0]),  MorningAlarmStart);  // Alarm Start recording 1
+      Alarm.alarmRepeat(dowSunday, getHours(timeStopArray [0][0]),  getMinutes(timeStopArray  [0][0]),  getSeconds(timeStopArray  [0][0]),  MorningAlarmStop);  // Alarm Stop recording 1
+      Alarm.alarmRepeat(dowSunday, getHours(timeStartArray  [1][0]),  getMinutes(timeStartArray [1][0]),  getSeconds(timeStartArray [1][0]),  EveningAlarmStart);  // Alarm Start recording 2
+      Alarm.alarmRepeat(dowSunday, getHours(timeStopArray [1][0]),  getMinutes(timeStopArray  [1][0]),  getSeconds(timeStopArray  [1][0]),  EveningAlarmStop);  // Alarm Stop recording 2
 
+                                                                                                                                                 
+    Alarm.alarmRepeat(dowMonday, getHours(timeStartArray  [0][1]),  getMinutes(timeStartArray [0][1]),  getSeconds(timeStartArray [0][1]),  MorningAlarmStart);  // Alarm Start recording 1
+      Alarm.alarmRepeat(dowMonday, getHours(timeStopArray [0][1]),  getMinutes(timeStopArray  [0][1]),  getSeconds(timeStopArray  [0][1]),  MorningAlarmStop);  // Alarm Stop recording 1
+      Alarm.alarmRepeat(dowMonday, getHours(timeStartArray  [1][1]),  getMinutes(timeStartArray [1][1]),  getSeconds(timeStartArray [1][1]),  EveningAlarmStart);  // Alarm Start recording 2
+      Alarm.alarmRepeat(dowMonday, getHours(timeStopArray [1][1]),  getMinutes(timeStopArray  [1][1]),  getSeconds(timeStopArray  [1][1]),  EveningAlarmStop);  // Alarm Stop recording 2
+                                                                                                                                                  
+    Alarm.alarmRepeat(dowTuesday, getHours(timeStartArray [0][2]),  getMinutes(timeStartArray [0][2]),  getSeconds(timeStartArray [0][2]),  MorningAlarmStart);  // Alarm Start recording 1
+      Alarm.alarmRepeat(dowTuesday, getHours(timeStopArray  [0][2]),  getMinutes(timeStopArray  [0][2]),  getSeconds(timeStopArray  [0][2]),  MorningAlarmStop);  // Alarm Stop recording 1
+      Alarm.alarmRepeat(dowTuesday, getHours(timeStartArray [1][2]),  getMinutes(timeStartArray [1][2]),  getSeconds(timeStartArray [1][2]),  EveningAlarmStart);  // Alarm Start recording 2
+      Alarm.alarmRepeat(dowTuesday, getHours(timeStopArray  [1][2]),  getMinutes(timeStopArray  [1][2]),  getSeconds(timeStopArray  [1][2]),  EveningAlarmStop);  // Alarm Stop recording 2
+                                                                                                                                                  
+    Alarm.alarmRepeat(dowWednesday, getHours(timeStartArray [0][3]),  getMinutes(timeStartArray [0][3]),  getSeconds(timeStartArray [0][3]),  MorningAlarmStart);  // Alarm Start recording 1
+      Alarm.alarmRepeat(dowWednesday, getHours(timeStopArray  [0][3]),  getMinutes(timeStopArray  [0][3]),  getSeconds(timeStopArray  [0][3]),  MorningAlarmStop);  // Alarm Stop recording 1
+      Alarm.alarmRepeat(dowWednesday, getHours(timeStartArray [1][3]),  getMinutes(timeStartArray [1][3]),  getSeconds(timeStartArray [1][3]),  EveningAlarmStart);  // Alarm Start recording 2
+      Alarm.alarmRepeat(dowWednesday, getHours(timeStopArray  [1][3]),  getMinutes(timeStopArray  [1][3]),  getSeconds(timeStopArray  [1][3]),  EveningAlarmStop);  // Alarm Stop recording 2
+      Serial.print("Alarm set for:"); Serial.print(dowWednesday);Serial.print(",");Serial.print(getHours(timeStartArray [0][3]));Serial.print("/");Serial.print(getMinutes(timeStartArray [0][3]));
+      Serial.print("/");Serial.print(getSeconds(timeStartArray [0][3]));Serial.print("And the year is:");Serial.println(now.year()-2000);
+                                                                                                                                                  
+    Alarm.alarmRepeat(dowThursday, getHours(timeStartArray  [0][4]),  getMinutes(timeStartArray [0][4]),  getSeconds(timeStartArray [0][4]),  MorningAlarmStart);  // Alarm Start recording 1
+      Alarm.alarmRepeat(dowThursday, getHours(timeStopArray [0][4]),  getMinutes(timeStopArray  [0][4]),  getSeconds(timeStopArray  [0][4]),  MorningAlarmStop);  // Alarm Stop recording 1
+      Alarm.alarmRepeat(dowThursday, getHours(timeStartArray  [1][4]),  getMinutes(timeStartArray [1][4]),  getSeconds(timeStartArray [1][4]),  EveningAlarmStart);  // Alarm Start recording 2
+      Alarm.alarmRepeat(dowThursday, getHours(timeStopArray [1][4]),  getMinutes(timeStopArray  [1][4]),  getSeconds(timeStopArray  [1][4]),  EveningAlarmStop);  // Alarm Stop recording 2
+                                                                                                                                                  
+    Alarm.alarmRepeat(dowFriday, getHours(timeStartArray  [0][5]),  getMinutes(timeStartArray [0][5]),  getSeconds(timeStartArray [0][5]),  MorningAlarmStart);  // Alarm Start recording 1
+      Alarm.alarmRepeat(dowFriday, getHours(timeStopArray [0][5]),  getMinutes(timeStopArray  [0][5]),  getSeconds(timeStopArray  [0][5]),  MorningAlarmStop);  // Alarm Stop recording 1
+      Alarm.alarmRepeat(dowFriday, getHours(timeStartArray  [1][5]),  getMinutes(timeStartArray [1][5]),  getSeconds(timeStartArray [1][5]),  EveningAlarmStart);  // Alarm Start recording 2
+      Alarm.alarmRepeat(dowFriday, getHours(timeStopArray [1][5]),  getMinutes(timeStopArray  [1][5]),  getSeconds(timeStopArray  [1][5]),  EveningAlarmStop);  // Alarm Stop recording 2
+                                                                                                                                                  
+    Alarm.alarmRepeat(dowSaturday, getHours(timeStartArray  [0][6]),  getMinutes(timeStartArray [0][6]),  getSeconds(timeStartArray [0][6]),  MorningAlarmStart);  // Alarm Start recording 1
+      Alarm.alarmRepeat(dowSaturday, getHours(timeStopArray [0][6]),  getMinutes(timeStopArray  [0][6]),  getSeconds(timeStopArray  [0][6]),  MorningAlarmStop);  // Alarm Stop recording 1
+      Alarm.alarmRepeat(dowSaturday, getHours(timeStartArray  [1][6]),  getMinutes(timeStartArray [1][6]),  getSeconds(timeStartArray [1][6]),  EveningAlarmStart);  // Alarm Start recording 2
+      Alarm.alarmRepeat(dowSaturday, getHours(timeStopArray [1][6]),  getMinutes(timeStopArray  [1][6]),  getSeconds(timeStopArray  [1][6]),  EveningAlarmStop);  // Alarm Stop recording 2
+    
+//   }
+//Serial.println(getHours(timeStartArray  [0][2]));
+//Serial.println(getMinutes(timeStartArray  [0][2]));
+//Serial.println(getSeconds(timeStartArray  [0][2]));
 
-
-
-
-
-
-void setup() 
-{
-
-// Prepare the pin 13 LED for blinking
-pinMode(LED_BUILTIN, OUTPUT);
-// Prepare the digital pin 2 for the relay command
-
-  // Start the GPS communication @9600bauds
-  gpsPort.begin(GPS_BAUD);
-  startDateDay = tinyGPS.date.day();
 }
 
-void loop() 
+
+// ------------------ Loop ---------------
+void loop() {
+  digitalClockDisplay();
+  //RTCDisplay();
+  Alarm.delay(1000); // wait one second between each clock display
+}
+
+// ------------------ functions to be called when an alarm triggers ---------------
+void MorningAlarmStart() {
+  Serial.println("Alarm: - turn lights on");
+  digitalWrite(ledPin, HIGH);   // turn the LED on (HIGH is the voltage level)
+}
+
+void EveningAlarmStart() {
+  Serial.println("Alarm: - turn lights off");
+  digitalWrite(ledPin, HIGH);   // turn the LED on (HIGH is the voltage level)
+}
+
+void MorningAlarmStop() {
+  Serial.println("Alarm: - turn lights on");
+  digitalWrite(ledPin, LOW);   // turn the LED on (HIGH is the voltage level)
+}
+
+void EveningAlarmStop() {
+  Serial.println("Alarm: - turn lights off");
+  digitalWrite(ledPin, LOW);   // turn the LED on (HIGH is the voltage level)
+}
+
+
+// ------------------ All other alarms ---------------
+void digitalClockDisplay() {
+  // digital clock display of the time
+  printDigitsHours(hour());
+  printDigits(minute());
+  printDigits(second());
+  Serial.println();
+}
+
+void printDigitsHours(int digits) {
+if (digits < 10)
+    Serial.print('0');
+  Serial.print(digits);
+}
+
+void printDigits(int digits) {
+  Serial.print(":");
+  if (digits < 10)
+    Serial.print('0');
+  Serial.print(digits);
+}
+
+void RTCDisplay(void)
 {
-  dayCounter =  startDateDay - tinyGPS.date.day();
-  // if we have a fix
-  
-  // check the day from the GPS
-  //Temporary transfor the 
-  if ((tinyGPS.time.hour() > getHours(timeStartArray[0][dayCounter]) && tinyGPS.time.hour() < getHours(timeStopArray[0][dayCounter])) || (tinyGPS.time.hour() > getHours(timeStartArray[1][dayCounter]) && tinyGPS.time.hour() < getHours(timeStopArray[1][dayCounter])))
-	{
-      if ((tinyGPS.time.minute() > getMinutes(timeStartArray[0][dayCounter]) && tinyGPS.time.minute() < getMinutes(timeStopArray[0][dayCounter])) || (tinyGPS.time.minute() > getMinutes(timeStartArray[1][dayCounter]) && tinyGPS.time.minute() < getMinutes(timeStopArray[1][dayCounter])))
-	  {
-		      if ((tinyGPS.time.hour() > getSeconds(timeStartArray[0][dayCounter]) && tinyGPS.time.hour() < getSeconds(timeStopArray[0][dayCounter])) || (tinyGPS.time.hour() > getSeconds(timeStartArray[1][dayCounter]) && tinyGPS.time.hour() < getSeconds(timeStopArray[1][dayCounter])))
-		      {
-			      digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-		      }
-     }
-	 
-	}
-  else //get already done flags here
-    {
-      digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-    }
-  // "Smart delay" looks for GPS data while the Arduino's not doing anything else
-  smartDelay(1000); 
+
+    DateTime now = RTC.now();
+    Serial.print("RTC:"); 
+    Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+    Serial.print(now.day(), DEC);
+    Serial.print(' ');
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);
+    Serial.println(); 
 
 }
 
-// -------------------------- Functions Definition---------------------------
-
-// This custom version of delay() ensures that the tinyGPS object
-// is being "fed". From the TinyGPS++ examples.
-static void smartDelay(unsigned long ms)
+int getHours(long int tableElement)
 {
-  unsigned long start = millis();
-  do
-  {
-    // If data has come in from the GPS module
-    while (gpsPort.available())
-      tinyGPS.encode(gpsPort.read()); // Send it to the encode function
-  // tinyGPS.encode(char) continues to "load" the tinGPS object with new
-  // data coming in from the GPS module. As full NMEA strings begin to come in
-  // the tinyGPS library will be able to start parsing them for pertinent info
-  } while (millis() - start < ms);
-}
-
-int getHours(int tableElement)
-{
+  //Serial.println((tableElement/ 100000 % 10)*10 + (tableElement/ 10000 % 10));
   return((tableElement/ 100000 % 10)*10 + (tableElement/ 10000 % 10));
 }
 
-int getMinutes(int tableElement)
+int getMinutes(long int tableElement)
 {
+   
   return((tableElement/ 1000 % 10)*10 + (tableElement/ 100 % 10));
 }
 
-int getSeconds(int tableElement)
+int getSeconds(long int tableElement)
 {
+
   return((tableElement/ 10 % 10)*10 + (tableElement/ 1 % 10));
 }
+
+
 
