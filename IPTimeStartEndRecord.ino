@@ -52,13 +52,14 @@ SoftwareSerial ssGPS(ARDUINO_GPS_TX, ARDUINO_GPS_RX); // Create a SoftwareSerial
 AlarmId id;
 
 int ledPin = 12;
+int dayPrevious = 0;
 
 long int recordTime = 1296000;
 
 // ------------------ Timetables ---------------
 
-long int timeStartArray[2][7] = {{105900,25300,105900,105900,105900,105900,105900} ,   /*  initializers for row indexed by 0 -> time1Start */
-	{210000,24900,210000,210000,210000,210000,210000}};    /*  initializers for row indexed by 1 -> time2Start */  
+unsigned long int timeStartArray[2][7] = {{105900,25300,234100,105900,105900,105900,105900} ,   /*  initializers for row indexed by 0 -> time1Start */
+	{210000,24900,234600,210000,210000,210000,210000}};    /*  initializers for row indexed by 1 -> time2Start */  
 
 // ------------------ Set Up ---------------
 void setup() {
@@ -73,22 +74,23 @@ void setup() {
 	Wire.begin();
 	RTC.begin();
 	DateTime now = RTC.now();
-	//set Arduino time with RTC
-	//  setTime(now.hour(),now.minute(),now.second(),now.day(),now.month(),now.year()-2000); 
 
-	//set Arduino time with GPS
 	smartDelay(1000);
-	setTime(tinyGPS.time.hour(),tinyGPS.time.minute(),tinyGPS.time.second(),tinyGPS.date.day(),tinyGPS.date.month(),tinyGPS.date.year()-2000); // set time to Saturday 8:29:00am Jan 1 2011
 
-	// set the RTC with GPS Time
-	RTC.adjust(DateTime(tinyGPS.date.year()-2000, tinyGPS.date.month() , tinyGPS.date.day(), tinyGPS.time.hour(), tinyGPS.time.minute(), tinyGPS.time.second()));
-
+	adjustAllClocks();
+	dayPrevious = day();
 	// create the alarms, to trigger at specific times :sizeof
 
 	// Days order: Sun, Mon, Tues, Wed, Thurs, Fri, Sat
 	
-	//timeStartArray[0][1] = tinyGPS.time.hour()*10000 + tinyGPS.time.minute()*100 + tinyGPS.time.second()+5;
-	//timeStartArray[1][1] = tinyGPS.time.hour()*10000 + tinyGPS.time.minute()*100 + tinyGPS.time.second()+20;
+	//timeStartArray[0][2] = (unsigned long) (hour())*10000 + (unsigned long) (minute())*100 + (unsigned long) (second())+5;
+	//timeStartArray[1][2] = (unsigned long) (hour())*10000 + (unsigned long) (minute())*100 + (unsigned long) (second())+10;
+
+        Serial.println(timeStartArray[0][2]);
+        Serial.println(timeStartArray[1][2]);
+        Serial.println(getHours(timeStartArray[0][2]));
+        
+        
 
 	Alarm.alarmOnce(dowSunday, getHours(timeStartArray[0][0]),  getMinutes(timeStartArray[0][0]), getSeconds(timeStartArray[0][0]),  MorningAlarmStart);  // Alarm Start recording 1
 	Alarm.alarmOnce(dowSunday, getHours(timeStartArray[1][0]),  getMinutes(timeStartArray[1][0]), getSeconds(timeStartArray[1][0]),  EveningAlarmStart);  // Alarm Start recording 2
@@ -120,10 +122,24 @@ void loop() {
 	//RTCprintTime();
 	//GPSprintTime();
 
+	if (dayPrevious != day())
+	{ //another day has passed, readjust clocks
+                Serial.println("Day has changed, adjusting clocks");
+		dayPrevious = day();
+		adjustAllClocks();
+
+	}
+
 	Alarm.delay(1000); // wait 500ms second between each clock display
 	//smartDelay(500);  // GPS delay
 	
 }
+
+
+
+
+
+
 
 // ------------------ functions to be called when an alarm triggers ---------------
 void MorningAlarmStart() {
@@ -212,19 +228,19 @@ void RTCprintTime(void)
 
 }
 
-int getHours(long int tableElement)
+int getHours(unsigned long int tableElement)
 {
-	return((tableElement/ 100000 % 10)*10 + (tableElement/ 10000 % 10));
+	return((int)(tableElement/ 100000 % 10)*10 + (tableElement/ 10000 % 10));
 }
 
-int getMinutes(long int tableElement)
+int getMinutes(unsigned long int tableElement)
 {
-	return((tableElement/ 1000 % 10)*10 + (tableElement/ 100 % 10));
+	return((int)(tableElement/ 1000 % 10)*10 + (tableElement/ 100 % 10));
 }
 
-int getSeconds(long int tableElement)
+int getSeconds(unsigned long int tableElement)
 {
-	return((tableElement/ 10 % 10)*10 + (tableElement/ 1 % 10));
+	return((int)(tableElement/ 10 % 10)*10 + (tableElement/ 1 % 10));
 }
 
 
@@ -240,6 +256,27 @@ void GPSprintTime()
 	SerialMonitor.print(":");
 	if (tinyGPS.time.second() < 10) SerialMonitor.print('0');
 	SerialMonitor.println(tinyGPS.time.second());
+}
+
+void adjustAllClocks()
+{
+	if(tinyGPS.satellites.value() > 3 ) //check we have GPS fix otherwise use RTC module to set time
+	{
+		setTime(tinyGPS.time.hour(),tinyGPS.time.minute(),tinyGPS.time.second(),tinyGPS.date.day(),tinyGPS.date.month(),tinyGPS.date.year()-2000);
+
+		// set the RTC with GPS Time
+		RTC.adjust(DateTime(tinyGPS.date.year()-2000, tinyGPS.date.month() , tinyGPS.date.day(), tinyGPS.time.hour(), tinyGPS.time.minute(), tinyGPS.time.second()));
+                
+                Serial.println("Adjusting with GPS");
+	}
+	else
+	{
+		//set arduino clock with RTC module
+		DateTime now = RTC.now();
+		setTime(now.hour(),now.minute(),now.second(),now.day(),now.month(),now.year());
+                
+                Serial.println("Adjusting with RTC");
+	}
 }
 
 
